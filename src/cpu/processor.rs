@@ -29,6 +29,16 @@ impl Processor {
         self.set_zero_and_neg(param);
         false
     }
+    fn ldx_immediate(&mut self, param: u8) -> bool {
+        self.x = param;
+        self.set_zero_and_neg(param);
+        false
+    }
+    fn ldy_immediate(&mut self, param: u8) -> bool {
+        self.y = param;
+        self.set_zero_and_neg(param);
+        false
+    }
     fn tax(&mut self) -> bool {
         self.x = self.a;
         self.set_zero_and_neg(self.x);
@@ -57,13 +67,15 @@ impl Processor {
             self.pc += 1;
             match opcode {
                 0xa9 => self.lda_immediate(instr_stream[self.pc as usize]),
-                0x00 => { return; }
+                0xa2 => self.ldx_immediate(instr_stream[self.pc as usize]),
+                0xa0 => self.ldy_immediate(instr_stream[self.pc as usize]),
+                0x00 => { return; },
                 0xaa => self.tax(),
                 opcode => {
                     log::error!("Reached unmatched opcode : {:x}", opcode);
                     false
                 }
-            }
+            };
         }
     }
 }
