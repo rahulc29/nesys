@@ -38,3 +38,19 @@ fn ldy_immediate() {
     processor.interpret(vec![0xa0, 0xff, 0x00]);
     assert_eq!(processor.status & 0b1000_0000, 0x80);
 }
+
+#[test]
+fn inx() {
+    let mut processor = Processor::new();
+    processor.interpret(vec![0xa2, 0xfe, 0xe8, 0xe8, 0x00]);
+    assert_eq!(processor.x, 0x00);
+    assert_eq!(processor.status & 0b0000_0010, 0b10);
+}
+
+#[test]
+fn iny() {
+    let mut processor = Processor::new();
+    processor.interpret(vec![0xa0, 0xfe, 0xc8, 0xc8, 0x69, 0x00]);
+    assert_eq!(processor.y, 0x00);
+    assert_eq!(processor.status & 0b0000_0010, 0b10);
+}

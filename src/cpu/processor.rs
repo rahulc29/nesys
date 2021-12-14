@@ -24,6 +24,16 @@ impl Processor {
             memory: [0; 1 << 16],
         }
     }
+    fn inx(&mut self) -> bool {
+        self.x = self.x.wrapping_add(1);
+        self.set_zero_and_neg(self.x);
+        false
+    }
+    fn iny(&mut self) -> bool {
+        self.y = self.y.wrapping_add(1);
+        self.set_zero_and_neg(self.y);
+        false
+    }
     fn lda_immediate(&mut self, param: u8) -> bool {
         self.a = param;
         self.set_zero_and_neg(param);
@@ -69,7 +79,9 @@ impl Processor {
                 0xa9 => self.lda_immediate(instr_stream[self.pc as usize]),
                 0xa2 => self.ldx_immediate(instr_stream[self.pc as usize]),
                 0xa0 => self.ldy_immediate(instr_stream[self.pc as usize]),
-                0x00 => { return; },
+                0x00 => { return; }
+                0xe8 => self.inx(),
+                0xc8 => self.iny(),
                 0xaa => self.tax(),
                 opcode => {
                     log::error!("Reached unmatched opcode : {:x}", opcode);
