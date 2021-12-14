@@ -12,6 +12,35 @@ pub struct Processor {
     pub memory: [u8; 1 << 16],
 }
 
+enum AddressMode {
+    /// Puts 8-bit constant into a register
+    Immediate(u8),
+    /// For accessing $0000 to $00ff
+    ZeroPage(u8),
+    /// Zero page but `to_access = address + register(X)`
+    /// Addition is wrapped; capable of overflow
+    ZeroPageX(u8),
+    /// `ZeroPageX` but for Y register
+    ZeroPageY(u8),
+    /// PC + address
+    /// where `address` is a **_signed_** 8-bit integer
+    Relative(i8),
+    /// Access memory at absolute address
+    /// Implementations using this enum must ensure that the address is stored big-endian
+    Absolute(u16),
+    /// Same as absolute but `to_access = address + register(X)`
+    /// Addition is wrapped; capable of overflow
+    AbsoluteX(u16),
+    /// Same as `AbsoluteX` but for Y
+    AbsoluteY(u16),
+    /// Goes to the address and reads two bytes (little-endian)
+    /// These read bytes are the actual address
+    /// Only used by the `jmp` instruction
+    Indirect(u16),
+    IndexedIndirect(u8),
+    IndirectIndexed(u8),
+}
+
 #[allow(dead_code)]
 impl Processor {
     pub fn new() -> Self {
@@ -20,7 +49,7 @@ impl Processor {
             y: 0,
             a: 0,
             status: 0,
-            sp: 0,
+            sp: 0xff,
             pc: 0,
             memory: [0; 1 << 16],
         }
@@ -33,22 +62,75 @@ impl Processor {
         self.sp = 0;
         self.pc = self.mem_read_u16(0xfffc);
     }
-    /// Read from memory; assuming `address` is big-endian
+    fn operand_address(&self, address_mode: AddressMode) -> u16 {
+        match address_mode {
+            AddressMode::Immediate(_) => {
+                self.pc
+            }
+            AddressMode::ZeroPage(address) => {
+                address as u16
+            }
+            AddressMode::ZeroPageX(address) => {
+                let address = address.wrapping_add(self.x) as u16;
+                address
+            }
+            AddressMode::ZeroPageY(address) => {
+                let address = address.wrapping_add(self.y) as u16;
+                address
+            }
+            AddressMode::Relative(offset) => {
+                // Refactor : put in separate function
+                let address = if offset < 0 {
+                    let offset = (0 - offset) as u16;
+                    self.pc - offset
+                } else {
+                    let offset = offset as u16;
+                    self.pc + offset
+                };
+                address
+            }
+            AddressMode::Absolute(address) => {
+                address
+            }
+            AddressMode::AbsoluteX(address) => {
+                let address = address.wrapping_add(self.x as u16);
+                address
+            }
+            AddressMode::AbsoluteY(address) => {
+                let address = address.wrapping_add(self.y as u16);
+                address
+            }
+            AddressMode::Indirect(address) => {
+                let address = self.mem_read_u16(address);
+                address
+            }
+            AddressMode::IndexedIndirect(address) => {
+                let address = self.mem_read_u16((address + self.x) as u16);
+                address
+            }
+            AddressMode::IndirectIndexed(address) => {
+                let address = self.mem_read_u16(address as u16) + (self.y as u16);
+                address
+            }
+        }
+    }
+    /// Read from memory; assuming `address` is native-endian
     fn mem_read_u8(&self, address: u16) -> u8 {
         self.memory[address as usize]
     }
-    /// Read two bytes from memory; assuming the `address` is big-endian
+    /// Read two bytes from memory; assuming the `address` is native-endian
     /// And the bytes are assumed to be little-endian
+    /// The returned value is native-endian
     fn mem_read_u16(&self, address: u16) -> u16 {
         let bytes = [self.memory[address as usize], self.memory[(address + 1) as usize]];
         u16::from_le_bytes(bytes)
     }
-    /// Write to memory; assuming `address` is big-endian
+    /// Write to memory; assuming `address` is native-endian
     fn mem_write_u8(&mut self, address: u16, value: u8) {
         self.memory[address as usize] = value;
     }
-    /// Write to memory; assuming `address` is big-endian
-    /// And `value` is also big-endian
+    /// Write to memory; assuming `address` is native-endian
+    /// And `value` is also native-endian
     /// Internally, will write `value` in _little-endian_ mode.
     fn mem_write_u16(&mut self, address: u16, value: u16) {
         let le_bytes = u16::to_le_bytes(value);
@@ -58,7 +140,7 @@ impl Processor {
     pub fn load_program(&mut self, program: &[u8]) {
         // programs are loaded at 0x8000
         // but after reset interrupt
-        // CPU reads the two bytes at 0xfffc
+        // CPU reads the two bytes at 0xfffc (little-endian)
         // it then jumps to that address
         // so we load the program at 0x8000
         // and write the value `0x8000` at the address `0xfffc`
@@ -78,6 +160,21 @@ impl Processor {
     fn lda_immediate(&mut self, param: u8) -> bool {
         self.a = param;
         self.set_zero_and_neg(param);
+        false
+    }
+    fn lda_zero_page(&mut self, address: u8) -> bool {
+        self.a = self.mem_read_u8(self.operand_address(AddressMode::ZeroPage(address)));
+        self.set_zero_and_neg(self.a);
+        false
+    }
+    fn ldx_zero_page(&mut self, address: u8) -> bool {
+        self.x = self.mem_read_u8(self.operand_address(AddressMode::ZeroPage(address)));
+        self.set_zero_and_neg(self.x);
+        false
+    }
+    fn ldy_zero_page(&mut self, address: u8) -> bool {
+        self.y = self.mem_read_u8(self.operand_address(AddressMode::ZeroPage(address)));
+        self.set_zero_and_neg(self.y);
         false
     }
     fn ldx_immediate(&mut self, param: u8) -> bool {
@@ -129,6 +226,9 @@ impl Processor {
                 0xe8 => self.inx(),
                 0xc8 => self.iny(),
                 0xaa => self.tax(),
+                0xa5 => self.lda_zero_page(self.memory[self.pc as usize]),
+                0xa6 => self.ldx_zero_page(self.memory[self.pc as usize]),
+                0xa4 => self.ldy_zero_page(self.memory[self.pc as usize]),
                 opcode => {
                     log::error!("Reached unmatched opcode : {:x}", opcode);
                     false

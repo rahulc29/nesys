@@ -54,3 +54,30 @@ fn iny() {
     assert_eq!(processor.y, 0x00);
     assert_eq!(processor.status & 0b0000_0010, 0b10);
 }
+
+#[test]
+fn lda_zero_page() {
+    // LDA $c0
+    let mut processor = Processor::new();
+    processor.memory[0xc0] = 0xff;
+    processor.interpret(vec![0xa5, 0xc0]);
+    assert_eq!(processor.a, 0xff);
+}
+
+#[test]
+fn ldx_zero_page() {
+    // LDX $b3
+    let mut processor = Processor::new();
+    processor.memory[0xb3] = 0x69;
+    processor.interpret(vec![0xa6, 0xb3]);
+    assert_eq!(processor.x, 0x69);
+}
+
+#[test]
+fn ldy_zero_page() {
+    // LDY $69
+    let mut processor = Processor::new();
+    processor.memory[0x69] = 0x45; // 0x45 = 69 in decimal
+    processor.interpret(vec![0xa4, 0x69]);
+    assert_eq!(processor.y, 0x45);
+}
