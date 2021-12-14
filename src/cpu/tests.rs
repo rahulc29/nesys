@@ -10,6 +10,7 @@ fn lda_immediate() {
     assert_eq!(processor.status & 0b0000_0010, 0b10);
     let mut processor = Processor::new();
     processor.interpret(vec![0xa9, 0xff, 0x00]);
+    assert_eq!(processor.status & 0b1000_0000, 0x80);
 }
 
 #[test]
@@ -22,6 +23,7 @@ fn ldx_immediate() {
     assert_eq!(processor.status & 0b0000_0010, 0b10);
     let mut processor = Processor::new();
     processor.interpret(vec![0xa2, 0xff, 0x00]);
+    assert_eq!(processor.status & 0b1000_0000, 0x80);
 }
 
 #[test]
@@ -34,4 +36,5 @@ fn ldy_immediate() {
     assert_eq!(processor.status & 0b0000_0010, 0b10);
     let mut processor = Processor::new();
     processor.interpret(vec![0xa0, 0xff, 0x00]);
+    assert_eq!(processor.status & 0b1000_0000, 0x80);
 }
