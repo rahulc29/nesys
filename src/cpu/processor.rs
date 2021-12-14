@@ -121,7 +121,7 @@ impl Processor {
             let opcode = self.memory[self.pc as usize];
             // Increment PC
             self.pc += 1;
-            match opcode {
+            if match opcode {
                 0xa9 => self.lda_immediate(self.memory[self.pc as usize]),
                 0xa2 => self.ldx_immediate(self.memory[self.pc as usize]),
                 0xa0 => self.ldy_immediate(self.memory[self.pc as usize]),
@@ -133,7 +133,9 @@ impl Processor {
                     log::error!("Reached unmatched opcode : {:x}", opcode);
                     false
                 }
-            };
+            } {
+                log::info!("Program Counter changed to : {:x}", self.pc);
+            }
         }
     }
     pub fn interpret(&mut self, instr_stream: Vec<u8>) {
