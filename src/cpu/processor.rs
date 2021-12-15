@@ -167,24 +167,24 @@ impl Processor {
         self.set_zero_and_neg(self.a);
         false
     }
-    fn ldx_zero_page(&mut self, address: u8) -> bool {
-        self.x = self.mem_read_u8(self.operand_address(AddressMode::ZeroPage(address)));
-        self.set_zero_and_neg(self.x);
-        false
-    }
-    fn ldy_zero_page(&mut self, address: u8) -> bool {
-        self.y = self.mem_read_u8(self.operand_address(AddressMode::ZeroPage(address)));
-        self.set_zero_and_neg(self.y);
-        false
-    }
     fn ldx_immediate(&mut self, param: u8) -> bool {
         self.x = param;
         self.set_zero_and_neg(param);
         false
     }
+    fn ldx_zero_page(&mut self, address: u8) -> bool {
+        self.x = self.mem_read_u8(self.operand_address(AddressMode::ZeroPage(address)));
+        self.set_zero_and_neg(self.x);
+        false
+    }
     fn ldy_immediate(&mut self, param: u8) -> bool {
         self.y = param;
         self.set_zero_and_neg(param);
+        false
+    }
+    fn ldy_zero_page(&mut self, address: u8) -> bool {
+        self.y = self.mem_read_u8(self.operand_address(AddressMode::ZeroPage(address)));
+        self.set_zero_and_neg(self.y);
         false
     }
     fn tax(&mut self) -> bool {
