@@ -167,6 +167,11 @@ impl Processor {
         self.set_zero_and_neg(self.a);
         false
     }
+    fn lda_zero_page_x(&mut self, address: u8) -> bool {
+        self.a = self.mem_read_u8(self.operand_address(AddressMode::ZeroPageX(address)));
+        self.set_zero_and_neg(self.a);
+        false
+    }
     fn ldx_immediate(&mut self, param: u8) -> bool {
         self.x = param;
         self.set_zero_and_neg(param);
@@ -177,6 +182,11 @@ impl Processor {
         self.set_zero_and_neg(self.x);
         false
     }
+    fn ldx_zero_page_x(&mut self, address: u8) -> bool {
+        self.x = self.mem_read_u8(self.operand_address(AddressMode::ZeroPageX(address)));
+        self.set_zero_and_neg(self.x);
+        false
+    }
     fn ldy_immediate(&mut self, param: u8) -> bool {
         self.y = param;
         self.set_zero_and_neg(param);
@@ -184,6 +194,11 @@ impl Processor {
     }
     fn ldy_zero_page(&mut self, address: u8) -> bool {
         self.y = self.mem_read_u8(self.operand_address(AddressMode::ZeroPage(address)));
+        self.set_zero_and_neg(self.y);
+        false
+    }
+    fn ldy_zero_page_x(&mut self, address: u8) -> bool {
+        self.y = self.mem_read_u8(self.operand_address(AddressMode::ZeroPageX(address)));
         self.set_zero_and_neg(self.y);
         false
     }
@@ -218,17 +233,20 @@ impl Processor {
             let opcode = self.memory[self.pc as usize];
             // Increment PC
             self.pc += 1;
+            let next_byte = self.memory[self.pc as usize];
             if match opcode {
-                0xa9 => self.lda_immediate(self.memory[self.pc as usize]),
-                0xa2 => self.ldx_immediate(self.memory[self.pc as usize]),
-                0xa0 => self.ldy_immediate(self.memory[self.pc as usize]),
+                0xa9 => self.lda_immediate(next_byte),
+                0xa2 => self.ldx_immediate(next_byte),
+                0xa0 => self.ldy_immediate(next_byte),
                 0x00 => { return; }
                 0xe8 => self.inx(),
                 0xc8 => self.iny(),
                 0xaa => self.tax(),
-                0xa5 => self.lda_zero_page(self.memory[self.pc as usize]),
-                0xa6 => self.ldx_zero_page(self.memory[self.pc as usize]),
-                0xa4 => self.ldy_zero_page(self.memory[self.pc as usize]),
+                0xa5 => self.lda_zero_page(next_byte),
+                0xa6 => self.ldx_zero_page(next_byte),
+                0xa4 => self.ldy_zero_page(next_byte),
+                0xb5 => self.lda_zero_page_x(next_byte),
+                0xb4 => self.ldy_zero_page_x(next_byte),
                 opcode => {
                     log::error!("Reached unmatched opcode : {:x}", opcode);
                     false
