@@ -81,3 +81,25 @@ fn ldy_zero_page() {
     processor.interpret(vec![0xa4, 0x69]);
     assert_eq!(processor.y, 0x45);
 }
+
+#[test]
+fn lda_zero_page_x() {
+    // LDX #$45
+    // LDA $00, X
+    // expect A has value stored at $45 ($69)
+    let mut processor = Processor::new();
+    processor.memory[0x45] = 0x69;
+    processor.interpret(vec![0xa2, 0x45, 0xb5, 0x00]);
+    assert_eq!(processor.a, 0x69);
+}
+
+#[test]
+fn ldy_zero_page_x() {
+    // LDX #$45
+    // LDY $00, X
+    // expect Y has value stored at $45 ($69)
+    let mut processor = Processor::new();
+    processor.memory[0x45] = 0x69;
+    processor.interpret(vec![0xa2, 0x45, 0xb4, 0x00]);
+    assert_eq!(processor.y, 0x69);
+}
