@@ -40,7 +40,6 @@ enum AddressMode {
     IndexedIndirect(u8),
     IndirectIndexed(u8),
 }
-
 #[allow(dead_code)]
 impl Processor {
     pub fn new() -> Self {
@@ -172,6 +171,11 @@ impl Processor {
         self.set_zero_and_neg(self.a);
         false
     }
+    fn lda_zero_page_y(&mut self, address: u8) -> bool {
+        self.a = self.mem_read_u8(self.operand_address(AddressMode::ZeroPageY(address)));
+        self.set_zero_and_neg(self.a);
+        false
+    }
     fn ldx_immediate(&mut self, param: u8) -> bool {
         self.x = param;
         self.set_zero_and_neg(param);
@@ -183,6 +187,11 @@ impl Processor {
         false
     }
     fn ldx_zero_page_x(&mut self, address: u8) -> bool {
+        self.x = self.mem_read_u8(self.operand_address(AddressMode::ZeroPageX(address)));
+        self.set_zero_and_neg(self.x);
+        false
+    }
+    fn ldx_zero_page_y(&mut self, address: u8) -> bool {
         self.x = self.mem_read_u8(self.operand_address(AddressMode::ZeroPageX(address)));
         self.set_zero_and_neg(self.x);
         false
@@ -199,6 +208,11 @@ impl Processor {
     }
     fn ldy_zero_page_x(&mut self, address: u8) -> bool {
         self.y = self.mem_read_u8(self.operand_address(AddressMode::ZeroPageX(address)));
+        self.set_zero_and_neg(self.y);
+        false
+    }
+    fn ldy_zero_page_y(&mut self, address: u8) -> bool {
+        self.y = self.mem_read_u8(self.operand_address(AddressMode::ZeroPageY(address)));
         self.set_zero_and_neg(self.y);
         false
     }
