@@ -40,6 +40,7 @@ enum AddressMode {
     IndexedIndirect(u8),
     IndirectIndexed(u8),
 }
+
 #[allow(dead_code)]
 impl Processor {
     pub fn new() -> Self {
@@ -60,6 +61,15 @@ impl Processor {
         self.status = 0;
         self.sp = 0;
         self.pc = self.mem_read_u16(0xfffc);
+    }
+    fn eval_address_mode_u8(&self, address_mode: AddressMode) -> u8 {
+        if let AddressMode::Immediate(constant) = address_mode {
+            constant
+        }
+        self.mem_read_u8(self.operand_address(address_mode))
+    }
+    fn eval_address_mode_u16(&self, address_mode: AddressMode) -> u16 {
+        self.mem_read_u16(self.operand_address(address_mode))
     }
     fn operand_address(&self, address_mode: AddressMode) -> u16 {
         match address_mode {
@@ -146,6 +156,72 @@ impl Processor {
         self.memory[0x8000..(0x8000 + program.len())].copy_from_slice(program);
         self.mem_write_u16(0xfffc, 0x8000);
     }
+
+    fn set_zero_and_neg(&mut self, value: u8) {
+        if value == 0 {
+            log::info!("[{:x}] Setting Zero Flag", self.pc);
+            self.status = self.status | 0b0000_0010;
+        } else {
+            self.status = self.status & 0b1111_1101;
+        }
+        if value & 0b1000_0000 != 0 {
+            log::info!("[{:x}] Setting Negative Flag", self.pc);
+            self.status = self.status | 0b1000_0000;
+        } else {
+            self.status = self.status & 0b0111_1111;
+        }
+    }
+    pub fn start_exec(&mut self, program: &[u8]) {
+        self.load_program(program);
+        self.reset();
+        self.run_program();
+    }
+    pub fn run_program(&mut self) {
+        loop {
+            // TODO : Add fetch cycles and implement bus
+            // Fetch opcode
+            let opcode = self.memory[self.pc as usize];
+            // Increment PC
+            self.pc += 1;
+            let next_byte = self.memory[self.pc as usize];
+            let next_short = self.mem_read_u16(self.pc);
+            if match opcode {
+                0xa9 => self.lda_immediate(next_byte),
+                0xa2 => self.ldx_immediate(next_byte),
+                0xa0 => self.ldy_immediate(next_byte),
+                0x00 => { return; }
+                0xe8 => self.inx(),
+                0xc8 => self.iny(),
+                0xaa => self.tax(),
+                0xa5 => self.lda_zero_page(next_byte),
+                0xa6 => self.ldx_zero_page(next_byte),
+                0xa4 => self.ldy_zero_page(next_byte),
+                0xb5 => self.lda_zero_page_x(next_byte),
+                0xb4 => self.ldy_zero_page_x(next_byte),
+                0x69 => self.adc(AddressMode::Immediate(next_byte)),
+                0x65 => self.adc(AddressMode::ZeroPage(next_byte)),
+                0x75 => self.adc(AddressMode::ZeroPageX(next_byte)),
+                0x6d => self.adc(AddressMode::Absolute(next_short)),
+                0x7d => self.adc(AddressMode::AbsoluteX(next_short)),
+                0x79 => self.adc(AddressMode::AbsoluteY(next_short)),
+                0x61 => self.adc(AddressMode::IndexedIndirect(next_byte)),
+                0x71 => self.adc(AddressMode::IndirectIndexed(next_byte)),
+                opcode => {
+                    log::error!("Reached unmatched opcode : {:x}", opcode);
+                    false
+                }
+            } {
+                log::info!("Program Counter changed to : {:x}", self.pc);
+            }
+        }
+    }
+    pub fn interpret(&mut self, instr_stream: Vec<u8>) {
+        self.start_exec(&instr_stream);
+    }
+}
+
+#[allow(dead_code)]
+impl Processor {
     fn inx(&mut self) -> bool {
         self.x = self.x.wrapping_add(1);
         self.set_zero_and_neg(self.x);
@@ -221,56 +297,14 @@ impl Processor {
         self.set_zero_and_neg(self.x);
         false
     }
-    fn set_zero_and_neg(&mut self, value: u8) {
-        if value == 0 {
-            log::info!("[{:x}] Setting Zero Flag", self.pc);
-            self.status = self.status | 0b0000_0010;
-        } else {
-            self.status = self.status & 0b1111_1101;
+    fn adc(&mut self, address: AddressMode) -> bool {
+        let to_add = self.eval_address_mode_u8(address);
+        let (new_val, overflow) = self.a.overflowing_add(to_add);
+        if overflow {
+            self.status |= 0b0000_0001;
         }
-        if value & 0b1000_0000 != 0 {
-            log::info!("[{:x}] Setting Negative Flag", self.pc);
-            self.status = self.status | 0b1000_0000;
-        } else {
-            self.status = self.status & 0b0111_1111;
-        }
-    }
-    pub fn start_exec(&mut self, program: &[u8]) {
-        self.load_program(program);
-        self.reset();
-        self.run_program();
-    }
-    pub fn run_program(&mut self) {
-        loop {
-            // TODO : Add fetch cycles and implement bus
-            // Fetch opcode
-            let opcode = self.memory[self.pc as usize];
-            // Increment PC
-            self.pc += 1;
-            let next_byte = self.memory[self.pc as usize];
-            if match opcode {
-                0xa9 => self.lda_immediate(next_byte),
-                0xa2 => self.ldx_immediate(next_byte),
-                0xa0 => self.ldy_immediate(next_byte),
-                0x00 => { return; }
-                0xe8 => self.inx(),
-                0xc8 => self.iny(),
-                0xaa => self.tax(),
-                0xa5 => self.lda_zero_page(next_byte),
-                0xa6 => self.ldx_zero_page(next_byte),
-                0xa4 => self.ldy_zero_page(next_byte),
-                0xb5 => self.lda_zero_page_x(next_byte),
-                0xb4 => self.ldy_zero_page_x(next_byte),
-                opcode => {
-                    log::error!("Reached unmatched opcode : {:x}", opcode);
-                    false
-                }
-            } {
-                log::info!("Program Counter changed to : {:x}", self.pc);
-            }
-        }
-    }
-    pub fn interpret(&mut self, instr_stream: Vec<u8>) {
-        self.start_exec(&instr_stream);
+        self.a = new_val;
+        self.set_zero_and_neg(self.a);
+        false
     }
 }
