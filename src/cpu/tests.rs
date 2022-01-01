@@ -103,3 +103,11 @@ fn ldy_zero_page_x() {
     processor.interpret(vec![0xa2, 0x45, 0xb4, 0x00]);
     assert_eq!(processor.y, 0x69);
 }
+
+#[test]
+fn adc() {
+    let mut processor = Processor::new();
+    processor.interpret(vec![0xa9, 0x50, 0x69, 0x50]);
+    assert_eq!(processor.a, 0xa0);
+    assert_eq!(processor.status & 0b1100_0011, 0b1100_0000);
+}

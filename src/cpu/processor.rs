@@ -64,7 +64,7 @@ impl Processor {
     }
     fn eval_address_mode_u8(&self, address_mode: AddressMode) -> u8 {
         if let AddressMode::Immediate(constant) = address_mode {
-            constant
+            return constant;
         }
         self.mem_read_u8(self.operand_address(address_mode))
     }
@@ -298,10 +298,18 @@ impl Processor {
         false
     }
     fn adc(&mut self, address: AddressMode) -> bool {
-        let to_add = self.eval_address_mode_u8(address);
-        let (new_val, overflow) = self.a.overflowing_add(to_add);
-        if overflow {
+        let m = self.eval_address_mode_u8(address);
+        let n = self.a;
+        let (new_val, carry) = n.overflowing_add(m);
+        if carry {
+            // set carry flag
+            // the carry flag accounts _unsigned_ overflow
             self.status |= 0b0000_0001;
+        }
+        if (m ^ new_val) & (n ^ new_val) & 0x80 != 0 {
+            // set overflow flag
+            // the overflow flag accounts _signed_ overflow
+            self.status |= 0b0100_0000;
         }
         self.a = new_val;
         self.set_zero_and_neg(self.a);
