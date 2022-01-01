@@ -62,6 +62,15 @@ impl Processor {
         self.sp = 0;
         self.pc = self.mem_read_u16(0xfffc);
     }
+    fn eval_address_mode_u8(&self, address_mode: AddressMode) -> u8 {
+        if let AddressMode::Immediate(constant) = address_mode {
+            return constant;
+        }
+        self.mem_read_u8(self.operand_address(address_mode))
+    }
+    fn eval_address_mode_u16(&self, address_mode: AddressMode) -> u16 {
+        self.mem_read_u16(self.operand_address(address_mode))
+    }
     fn operand_address(&self, address_mode: AddressMode) -> u16 {
         match address_mode {
             AddressMode::Immediate(_) => {
@@ -147,66 +156,7 @@ impl Processor {
         self.memory[0x8000..(0x8000 + program.len())].copy_from_slice(program);
         self.mem_write_u16(0xfffc, 0x8000);
     }
-    fn inx(&mut self) -> bool {
-        self.x = self.x.wrapping_add(1);
-        self.set_zero_and_neg(self.x);
-        false
-    }
-    fn iny(&mut self) -> bool {
-        self.y = self.y.wrapping_add(1);
-        self.set_zero_and_neg(self.y);
-        false
-    }
-    fn lda_immediate(&mut self, param: u8) -> bool {
-        self.a = param;
-        self.set_zero_and_neg(param);
-        false
-    }
-    fn lda_zero_page(&mut self, address: u8) -> bool {
-        self.a = self.mem_read_u8(self.operand_address(AddressMode::ZeroPage(address)));
-        self.set_zero_and_neg(self.a);
-        false
-    }
-    fn lda_zero_page_x(&mut self, address: u8) -> bool {
-        self.a = self.mem_read_u8(self.operand_address(AddressMode::ZeroPageX(address)));
-        self.set_zero_and_neg(self.a);
-        false
-    }
-    fn ldx_immediate(&mut self, param: u8) -> bool {
-        self.x = param;
-        self.set_zero_and_neg(param);
-        false
-    }
-    fn ldx_zero_page(&mut self, address: u8) -> bool {
-        self.x = self.mem_read_u8(self.operand_address(AddressMode::ZeroPage(address)));
-        self.set_zero_and_neg(self.x);
-        false
-    }
-    fn ldx_zero_page_x(&mut self, address: u8) -> bool {
-        self.x = self.mem_read_u8(self.operand_address(AddressMode::ZeroPageX(address)));
-        self.set_zero_and_neg(self.x);
-        false
-    }
-    fn ldy_immediate(&mut self, param: u8) -> bool {
-        self.y = param;
-        self.set_zero_and_neg(param);
-        false
-    }
-    fn ldy_zero_page(&mut self, address: u8) -> bool {
-        self.y = self.mem_read_u8(self.operand_address(AddressMode::ZeroPage(address)));
-        self.set_zero_and_neg(self.y);
-        false
-    }
-    fn ldy_zero_page_x(&mut self, address: u8) -> bool {
-        self.y = self.mem_read_u8(self.operand_address(AddressMode::ZeroPageX(address)));
-        self.set_zero_and_neg(self.y);
-        false
-    }
-    fn tax(&mut self) -> bool {
-        self.x = self.a;
-        self.set_zero_and_neg(self.x);
-        false
-    }
+
     fn set_zero_and_neg(&mut self, value: u8) {
         if value == 0 {
             log::info!("[{:x}] Setting Zero Flag", self.pc);
@@ -234,6 +184,7 @@ impl Processor {
             // Increment PC
             self.pc += 1;
             let next_byte = self.memory[self.pc as usize];
+            let next_short = self.mem_read_u16(self.pc);
             if match opcode {
                 0xa9 => self.lda_immediate(next_byte),
                 0xa2 => self.ldx_immediate(next_byte),
@@ -247,6 +198,14 @@ impl Processor {
                 0xa4 => self.ldy_zero_page(next_byte),
                 0xb5 => self.lda_zero_page_x(next_byte),
                 0xb4 => self.ldy_zero_page_x(next_byte),
+                0x69 => self.adc(AddressMode::Immediate(next_byte)),
+                0x65 => self.adc(AddressMode::ZeroPage(next_byte)),
+                0x75 => self.adc(AddressMode::ZeroPageX(next_byte)),
+                0x6d => self.adc(AddressMode::Absolute(next_short)),
+                0x7d => self.adc(AddressMode::AbsoluteX(next_short)),
+                0x79 => self.adc(AddressMode::AbsoluteY(next_short)),
+                0x61 => self.adc(AddressMode::IndexedIndirect(next_byte)),
+                0x71 => self.adc(AddressMode::IndirectIndexed(next_byte)),
                 opcode => {
                     log::error!("Reached unmatched opcode : {:x}", opcode);
                     false
@@ -258,5 +217,102 @@ impl Processor {
     }
     pub fn interpret(&mut self, instr_stream: Vec<u8>) {
         self.start_exec(&instr_stream);
+    }
+}
+
+#[allow(dead_code)]
+impl Processor {
+    fn inx(&mut self) -> bool {
+        self.x = self.x.wrapping_add(1);
+        self.set_zero_and_neg(self.x);
+        false
+    }
+    fn iny(&mut self) -> bool {
+        self.y = self.y.wrapping_add(1);
+        self.set_zero_and_neg(self.y);
+        false
+    }
+    fn lda_immediate(&mut self, param: u8) -> bool {
+        self.a = param;
+        self.set_zero_and_neg(param);
+        false
+    }
+    fn lda_zero_page(&mut self, address: u8) -> bool {
+        self.a = self.mem_read_u8(self.operand_address(AddressMode::ZeroPage(address)));
+        self.set_zero_and_neg(self.a);
+        false
+    }
+    fn lda_zero_page_x(&mut self, address: u8) -> bool {
+        self.a = self.mem_read_u8(self.operand_address(AddressMode::ZeroPageX(address)));
+        self.set_zero_and_neg(self.a);
+        false
+    }
+    fn lda_zero_page_y(&mut self, address: u8) -> bool {
+        self.a = self.mem_read_u8(self.operand_address(AddressMode::ZeroPageY(address)));
+        self.set_zero_and_neg(self.a);
+        false
+    }
+    fn ldx_immediate(&mut self, param: u8) -> bool {
+        self.x = param;
+        self.set_zero_and_neg(param);
+        false
+    }
+    fn ldx_zero_page(&mut self, address: u8) -> bool {
+        self.x = self.mem_read_u8(self.operand_address(AddressMode::ZeroPage(address)));
+        self.set_zero_and_neg(self.x);
+        false
+    }
+    fn ldx_zero_page_x(&mut self, address: u8) -> bool {
+        self.x = self.mem_read_u8(self.operand_address(AddressMode::ZeroPageX(address)));
+        self.set_zero_and_neg(self.x);
+        false
+    }
+    fn ldx_zero_page_y(&mut self, address: u8) -> bool {
+        self.x = self.mem_read_u8(self.operand_address(AddressMode::ZeroPageX(address)));
+        self.set_zero_and_neg(self.x);
+        false
+    }
+    fn ldy_immediate(&mut self, param: u8) -> bool {
+        self.y = param;
+        self.set_zero_and_neg(param);
+        false
+    }
+    fn ldy_zero_page(&mut self, address: u8) -> bool {
+        self.y = self.mem_read_u8(self.operand_address(AddressMode::ZeroPage(address)));
+        self.set_zero_and_neg(self.y);
+        false
+    }
+    fn ldy_zero_page_x(&mut self, address: u8) -> bool {
+        self.y = self.mem_read_u8(self.operand_address(AddressMode::ZeroPageX(address)));
+        self.set_zero_and_neg(self.y);
+        false
+    }
+    fn ldy_zero_page_y(&mut self, address: u8) -> bool {
+        self.y = self.mem_read_u8(self.operand_address(AddressMode::ZeroPageY(address)));
+        self.set_zero_and_neg(self.y);
+        false
+    }
+    fn tax(&mut self) -> bool {
+        self.x = self.a;
+        self.set_zero_and_neg(self.x);
+        false
+    }
+    fn adc(&mut self, address: AddressMode) -> bool {
+        let m = self.eval_address_mode_u8(address);
+        let n = self.a;
+        let (new_val, carry) = n.overflowing_add(m);
+        if carry {
+            // set carry flag
+            // the carry flag accounts _unsigned_ overflow
+            self.status |= 0b0000_0001;
+        }
+        if (m ^ new_val) & (n ^ new_val) & 0x80 != 0 {
+            // set overflow flag
+            // the overflow flag accounts _signed_ overflow
+            self.status |= 0b0100_0000;
+        }
+        self.a = new_val;
+        self.set_zero_and_neg(self.a);
+        false
     }
 }
